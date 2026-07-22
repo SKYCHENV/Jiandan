@@ -1,5 +1,7 @@
 # 剪蛋
 
+[简体中文](README.md) | [English](README_EN.md)
+
 <img src="assets/brand/jiandan.png" alt="剪蛋" width="160">
 
 **简单复制到剪映。** 复制或截图一张图片，在剪映素材页按 `Ctrl+V`，剪蛋会把本次图片导入素材区并自动选中预览，不添加到时间线。
