@@ -1,0 +1,21 @@
+.venv/
+.pytest_cache/
+__pycache__/
+*.py[cod]
+
+# Runtime output and user media. Imported files may be referenced by drafts.
+/a/
+/assets/clipboard-images/
+/import-debug.log
+/*.log
+
+# Local IDE and OS files.
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Build output.
+*.exe
+build/
+dist/
