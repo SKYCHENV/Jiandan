@@ -6,6 +6,8 @@ import time
 from ctypes import wintypes
 from typing import Callable
 
+from .diagnostics import log
+
 
 WM_HOTKEY = 0x0312
 WM_QUIT = 0x0012
@@ -56,6 +58,8 @@ class ConditionalRegisteredHotkey:
             self._registered = bool(
                 user32.RegisterHotKey(None, HOTKEY_ID, MOD_CONTROL | MOD_NOREPEAT, VK_V)
             )
+            if not self._registered:
+                log(f"hotkey register failed winerror={ctypes.get_last_error()}")
         elif not enabled and self._registered:
             user32.UnregisterHotKey(None, HOTKEY_ID)
             self._registered = False
@@ -64,6 +68,9 @@ class ConditionalRegisteredHotkey:
         user32 = ctypes.windll.user32
         kernel32 = ctypes.windll.kernel32
         self._thread_id = kernel32.GetCurrentThreadId()
+        # PeekMessage creates this thread's message queue before start() returns.
+        bootstrap = wintypes.MSG()
+        user32.PeekMessageW(ctypes.byref(bootstrap), None, 0, 0, 0)
         self._ready.set()
         message = wintypes.MSG()
         try:
@@ -72,8 +79,9 @@ class ConditionalRegisteredHotkey:
                     if message.message == WM_QUIT:
                         return
                     if message.message == WM_HOTKEY and message.wParam == HOTKEY_ID:
+                        log("hotkey received")
                         self._set_registered(False)
-                        self._cooldown_until = time.monotonic() + 1.0
+                        self._cooldown_until = time.monotonic() + 0.25
                         try:
                             self.on_import()
                         except Exception:

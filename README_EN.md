@@ -4,7 +4,7 @@
 
 <img src="assets/brand/jiandan.png" alt="Jiandan" width="160">
 
-**Copy images straight into Jianying.** Copy or capture an image, press `Ctrl+V` on Jianying's Media page, and Jiandan imports the image, selects it, and opens it in the preview player without adding it to the timeline.
+**Copy images straight into Jianying.** Copy or capture an image, press `Ctrl+V` on Jianying's Media page, and Jiandan places it at the playhead on a track above the existing visual tracks.
 
 ## Why Jiandan Exists
 
@@ -12,7 +12,7 @@ Jianying does not let you paste a screenshot directly into its media library.
 
 To use a screenshot, you would normally have to save an image from the web, or paste the screenshot into a chat, save it locally, find the file, and finally drag it into Jianying. The image is already on your clipboard, yet the workflow still sends you through several unnecessary steps.
 
-That is why Jiandan exists. Take a screenshot or copy an image, return to Jianying, and press `Ctrl+V`. The image appears in the media library and is selected for preview. No temporary chat message, no manual save, and no file dragging.
+That is why Jiandan exists. Take a screenshot or copy an image, return to Jianying, and press `Ctrl+V`. The image appears in the media library and on the timeline. No temporary chat message, no manual save, and no file dragging.
 
 ## Requirements
 
@@ -32,7 +32,9 @@ On the first launch, the script creates a local `.venv`, installs the required p
 2. Open a Jianying project and stay on the Media page.
 3. Capture or copy an image.
 4. Return to Jianying and press `Ctrl+V`.
-5. The image is imported, selected, and shown in the preview player.
+5. The image is placed at the playhead on a visual track above the existing tracks.
+
+[Watch the real Jianying demo](demo/jiandan-demo.mp4)
 
 Closing the status window sends Jiandan to the system tray. To stop it completely, right-click the tray icon and choose Exit.
 
@@ -60,4 +62,4 @@ The automated suite covers clipboard safety, Jianying foreground detection, the 
 
 ## How It Works
 
-Jiandan conditionally registers `Ctrl+V`. It intercepts the shortcut only when Jianying is in the foreground and the clipboard contains an image. The image is saved to an isolated short path and passed to Jianying's native import flow. The system file picker is made invisible and non-activating as it opens, then receives only the exact path of the current image. Text clipboard content and paste operations in other applications keep their normal system behavior.
+Jiandan conditionally registers `Ctrl+V`. It intercepts the shortcut only when Jianying is in the foreground and the clipboard contains an image. The image is saved to an isolated short path and passed to Jianying's native import flow. The system file picker is made invisible and non-activating as it opens, then receives only the exact path of the current image. Jiandan then invokes the imported media tile's native Add to Track command, allowing Jianying itself to place it at the playhead above existing visual tracks. Text clipboard content and paste operations in other applications keep their normal system behavior.

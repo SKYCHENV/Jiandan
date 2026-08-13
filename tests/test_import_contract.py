@@ -1,7 +1,7 @@
 import ctypes
 from pathlib import Path
 
-from PIL import Image, ImageDraw
+from PIL import Image
 
 from jy_live_paste import dialog_import, importer, status_gui, win
 
@@ -24,10 +24,9 @@ def test_each_image_uses_an_isolated_directory(monkeypatch, tmp_path) -> None:
     assert first.exists() and second.exists()
 
 
-def test_importer_uses_exact_file_and_confirms_new_selection(monkeypatch, tmp_path) -> None:
+def test_importer_imports_then_invokes_native_add(monkeypatch, tmp_path) -> None:
     before = Image.new("RGB", (700, 500), (25, 25, 25))
     after = before.copy()
-    ImageDraw.Draw(after).rectangle((120, 150, 236, 228), fill=(40, 150, 190))
     screenshots = iter((before, after))
     image_path = tmp_path / "only-this-file.png"
     Image.new("RGB", (10, 10), "red").save(image_path)
@@ -37,19 +36,15 @@ def test_importer_uses_exact_file_and_confirms_new_selection(monkeypatch, tmp_pa
     monkeypatch.setattr(importer, "_clipboard_image", lambda: Image.new("RGB", (10, 10), "red"))
     monkeypatch.setattr(importer, "_save_isolated", lambda _image: (image_path, "abc"))
     monkeypatch.setattr(importer.win, "screenshot_window", lambda _hwnd: next(screenshots))
-    monkeypatch.setattr(
-        importer,
-        "choose_file_invisible",
-        lambda hwnd, path: calls.append((hwnd, path)),
-    )
+    monkeypatch.setattr(importer, "choose_file_invisible", lambda hwnd, path: calls.append(("import", hwnd, path)))
     monkeypatch.setattr(importer, "find_new_media_box", lambda _before, _after: (120, 150, 236, 228))
-    selected = iter((None, (120, 150, 236, 228)))
-    monkeypatch.setattr(importer, "find_selected_media_box", lambda _image: next(selected))
+    monkeypatch.setattr(importer, "find_selected_media_box", lambda _image: (120, 150, 236, 228))
+    monkeypatch.setattr(importer, "_invoke_native_add", lambda hwnd, box: calls.append(("add", hwnd, box)))
 
     report = importer.import_clipboard_image()
 
     assert report.image_path == image_path
-    assert calls == [(7, image_path)]
+    assert calls == [("import", 7, image_path), ("add", 7, (120, 150, 236, 228))]
 
 
 def test_runtime_contains_no_low_level_hook_or_physical_cursor_motion() -> None:
@@ -59,21 +54,27 @@ def test_runtime_contains_no_low_level_hook_or_physical_cursor_motion() -> None:
     assert "SetWindowsHookEx" not in source
     assert "SetCursorPos" not in source
     assert "mouse_event" not in source
-    assert "EmptyClipboard" not in source
-    assert "SetClipboardData" not in source
     assert "choose_file_hidden" not in source
+
+
+def test_runtime_invokes_native_add_without_physical_pointer() -> None:
+    source = Path(importer.__file__).read_text(encoding="utf-8")
+    assert "_invoke_native_add" in source
+    assert "PostMessage" in source
+    assert "SetCursorPos" not in source
+    assert "mouse_event" not in source
 
 
 def test_foreground_restore_is_scoped_to_the_import_dialog() -> None:
     source = Path(dialog_import.__file__).read_text(encoding="utf-8")
     assert "EVENT_OBJECT_SHOW" in source
     assert "EVENT_SYSTEM_FOREGROUND" in source
-    assert "GetForegroundWindow() == dialog" in source
+    assert "SetLayeredWindowAttributes" in source
     assert "SetForegroundWindow(editor_hwnd)" in source
     assert "ShowWindow(dialog" not in source
 
 
-def test_dialog_path_submission_uses_native_messages() -> None:
+def test_dialog_submits_only_the_exact_path_with_native_messages() -> None:
     source = Path(dialog_import.__file__).read_text(encoding="utf-8")
     assert "WM_CHAR" in source
     assert "_send_edit_text(edit, exact_path)" in source

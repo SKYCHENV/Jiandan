@@ -338,8 +338,8 @@ class StatusWindow(QtWidgets.QWidget):
     def _begin_import(self) -> None:
         if not self.service_enabled or not self.busy_lock.acquire(blocking=False):
             return
-        self.operation_value.setText("正在导入")
-        self.hero_detail.setText("正在为剪映准备图片")
+        self.operation_value.setText("正在粘贴")
+        self.hero_detail.setText("正在加入播放头上方轨道")
         self._set_dot(self.hero_dot, BRAND_BLUE)
         log("gui begin")
         threading.Thread(target=self._import_worker, daemon=True).start()
@@ -349,7 +349,7 @@ class StatusWindow(QtWidgets.QWidget):
         try:
             import_clipboard_image()
             elapsed_ms = int((time.perf_counter() - started) * 1000)
-            self.bridge.state_changed.emit("成功", "图片已导入并自动预览", elapsed_ms)
+            self.bridge.state_changed.emit("成功", "图片已粘贴到播放头", elapsed_ms)
         except Exception as exc:
             log(f"import failed: {exc!r}")
             elapsed_ms = int((time.perf_counter() - started) * 1000)
@@ -360,12 +360,12 @@ class StatusWindow(QtWidgets.QWidget):
     @QtCore.Slot(str, str, int)
     def apply_state(self, state: str, message: str, elapsed_ms: int) -> None:
         success = state == "成功"
-        self.operation_value.setText("导入完成" if success else "导入失败")
+        self.operation_value.setText("粘贴完成" if success else "粘贴失败")
         self.hero_detail.setText(message)
         self._set_dot(self.hero_dot, BRAND_BLUE if success else "#FF453A")
         self.speed_value.setText(f"{elapsed_ms} ms")
         stamp = time.strftime("%H:%M:%S")
-        self.events.appendleft(f"{stamp}    {'已导入' if success else '失败'}    {message}")
+        self.events.appendleft(f"{stamp}    {'已粘贴' if success else '失败'}    {message}")
         self.log_list.clear()
         self.log_list.addItems(list(self.events))
         self.refresh_status()

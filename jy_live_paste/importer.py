@@ -3,6 +3,9 @@ from __future__ import annotations
 import hashlib
 import time
 import uuid
+import win32api
+import win32con
+import win32gui
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -22,7 +25,7 @@ ASSET_ROOT = PROJECT_DIR / "a"
 class ImportReport:
     image_path: Path
     image_hash: str
-    media_box: tuple[int, int, int, int] | None
+    media_box: tuple[int, int, int, int]
     elapsed_ms: int
 
 
@@ -44,6 +47,17 @@ def _save_isolated(image: Image.Image) -> tuple[Path, str]:
 
 def _boxes_overlap(a: tuple[int, int, int, int], b: tuple[int, int, int, int]) -> bool:
     return min(a[2], b[2]) > max(a[0], b[0]) and min(a[3], b[3]) > max(a[1], b[1])
+
+
+def _invoke_native_add(hwnd: int, media_box: tuple[int, int, int, int]) -> None:
+    """Invoke Jianying's tile '+' without moving the physical pointer."""
+    window_left, window_top, _, _ = win32gui.GetWindowRect(hwnd)
+    screen_x = media_box[2] - 12
+    screen_y = media_box[3] - 12
+    client_x, client_y = win32gui.ScreenToClient(hwnd, (screen_x, screen_y))
+    lparam = win32api.MAKELONG(client_x, client_y)
+    win32gui.PostMessage(hwnd, win32con.WM_LBUTTONDOWN, win32con.MK_LBUTTON, lparam)
+    win32gui.PostMessage(hwnd, win32con.WM_LBUTTONUP, 0, lparam)
 
 
 def import_clipboard_image() -> ImportReport:
@@ -69,22 +83,22 @@ def import_clipboard_image() -> ImportReport:
     mark("imported")
 
     media_box = None
-    selected_box = None
-    # Jianying may reuse the same visible grid slot for the newly selected item,
-    # so an unchanged selection rectangle is still a valid successful import.
-    # The chooser has already accepted the exact file; this loop is telemetry.
     deadline = time.monotonic() + 0.8
     while time.monotonic() < deadline:
         after = win.screenshot_window(hwnd)
-        media_box = find_new_media_box(before, after)
+        changed_box = find_new_media_box(before, after)
         selected_box = find_selected_media_box(after)
         selected_changed = selected_box is not None and selected_box != before_selected
         if selected_box is not None and (
-            selected_changed or media_box is None or _boxes_overlap(media_box, selected_box)
+            selected_changed or changed_box is None or _boxes_overlap(changed_box, selected_box)
         ):
             media_box = selected_box
             break
-        time.sleep(0.04)
+        time.sleep(0.03)
+    if media_box is None:
+        raise RuntimeError("未能确认新导入的图片素材。")
+    _invoke_native_add(hwnd, media_box)
+    mark("native-add")
 
     elapsed_ms = int((time.perf_counter() - started) * 1000)
     log(

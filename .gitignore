@@ -8,6 +8,9 @@ __pycache__/
 /assets/clipboard-images/
 /import-debug.log
 /*.log
+/research/
+/demo/frames/
+/demo/demo-*.png
 
 # Local IDE and OS files.
 .idea/

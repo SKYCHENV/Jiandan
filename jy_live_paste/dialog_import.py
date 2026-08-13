@@ -167,6 +167,8 @@ def _is_import_dialog(hwnd: int, pid: int) -> bool:
 
 
 def _cloak_dialog(dialog: int, editor_hwnd: int) -> None:
+    if not win32gui.IsWindow(dialog):
+        return
     ex_style = win32gui.GetWindowLong(dialog, win32con.GWL_EXSTYLE)
     win32gui.SetWindowLong(
         dialog,
@@ -177,20 +179,26 @@ def _cloak_dialog(dialog: int, editor_hwnd: int) -> None:
         | win32con.WS_EX_NOACTIVATE,
     )
     win32gui.SetLayeredWindowAttributes(dialog, 0, 0, win32con.LWA_ALPHA)
-    win32gui.SetWindowPos(
-        dialog,
-        win32con.HWND_BOTTOM,
-        -32000,
-        -32000,
-        0,
-        0,
-        win32con.SWP_NOSIZE | win32con.SWP_NOACTIVATE | win32con.SWP_NOOWNERZORDER,
-    )
-    # A common file dialog is modal and briefly disables/dims its owner. Restore
-    # only the editor that initiated this import, without touching window size.
+    # Return focus as soon as the dialog is transparent. The remaining cloak
+    # and control work can continue without extending Jianying's inactive time.
     win32gui.EnableWindow(editor_hwnd, True)
     if win32gui.GetForegroundWindow() == dialog:
         win32gui.SetForegroundWindow(editor_hwnd)
+    try:
+        win32gui.SetWindowPos(
+            dialog,
+            win32con.HWND_BOTTOM,
+            -32000,
+            -32000,
+            0,
+            0,
+            win32con.SWP_NOSIZE | win32con.SWP_NOACTIVATE | win32con.SWP_NOOWNERZORDER,
+        )
+    except win32gui.error:
+        # Duplicate WinEvent callbacks can arrive after the dialog has closed.
+        return
+    # A common file dialog is modal and briefly disables/dims its owner. Restore
+    # only the editor that initiated this import, without touching window size.
 
 
 class _DialogCloaker:
@@ -229,7 +237,10 @@ class _DialogCloaker:
         if not _is_import_dialog(hwnd, self.pid):
             return
         self.dialog = hwnd
-        _cloak_dialog(hwnd, self.editor_hwnd)
+        try:
+            _cloak_dialog(hwnd, self.editor_hwnd)
+        except Exception:
+            return
         self.dialog_ready.set()
 
     def _run(self) -> None:
