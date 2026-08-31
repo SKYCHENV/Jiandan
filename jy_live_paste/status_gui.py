@@ -11,6 +11,7 @@ import win32con
 import win32gui
 from PySide6 import QtCore, QtGui, QtWidgets
 
+from .auth import AuthClient, AuthError, Session
 from .safe_hotkey import ConditionalRegisteredHotkey
 from .importer import import_clipboard_image
 from .diagnostics import log
@@ -105,9 +106,204 @@ class Bridge(QtCore.QObject):
     state_changed = QtCore.Signal(str, str, int)
 
 
-class StatusWindow(QtWidgets.QWidget):
-    def __init__(self, show_event: int) -> None:
+class AuthBridge(QtCore.QObject):
+    restored = QtCore.Signal(object)
+    code_sent = QtCore.Signal(int)
+    authenticated = QtCore.Signal(object)
+    failed = QtCore.Signal(str, str)
+    signed_out = QtCore.Signal()
+    session_checked = QtCore.Signal(object)
+    session_rejected = QtCore.Signal(str)
+
+
+class LoginWindow(QtWidgets.QWidget):
+    authenticated = QtCore.Signal(object)
+
+    def __init__(self, client: AuthClient) -> None:
         super().__init__()
+        self.client = client
+        self.bridge = AuthBridge()
+        self.bridge.restored.connect(self._finish_restore)
+        self.bridge.code_sent.connect(self._finish_code_request)
+        self.bridge.authenticated.connect(self._finish_verification)
+        self.bridge.failed.connect(self._show_error)
+        self.cooldown_remaining = 0
+        self._build_ui()
+        self.cooldown_timer = QtCore.QTimer(self)
+        self.cooldown_timer.timeout.connect(self._tick_cooldown)
+        QtCore.QTimer.singleShot(0, self._start_restore)
+
+    def _build_ui(self) -> None:
+        self.setWindowTitle("登录剪蛋")
+        self.setWindowIcon(brand_icon())
+        self.setFixedSize(440, 520)
+        self.setStyleSheet("""
+            QWidget { background: #000000; color: #F5F5F7; font-family: 'Microsoft YaHei UI', 'Segoe UI'; font-size: 13px; }
+            QLabel { background: transparent; }
+            QLabel#loginTitle { font-size: 26px; font-weight: 700; }
+            QLabel#loginDetail { color: #98989D; font-size: 13px; }
+            QLabel#loginStatus { color: #98989D; font-size: 12px; }
+            QLineEdit { background: #141416; border: 1px solid #2C2C2E; border-radius: 8px; padding: 0 13px; min-height: 44px; selection-background-color: #0A84FF; }
+            QLineEdit:focus { border-color: #0A84FF; }
+            QPushButton { background: #0A84FF; border: none; border-radius: 8px; min-height: 44px; font-weight: 700; }
+            QPushButton:hover { background: #2997FF; }
+            QPushButton:disabled { background: #1C1C1E; color: #636366; }
+            QPushButton#quietButton { background: transparent; color: #0A84FF; font-weight: 600; }
+        """)
+        root = QtWidgets.QVBoxLayout(self)
+        root.setContentsMargins(42, 34, 42, 34)
+        root.setSpacing(14)
+        root.addWidget(EggLogo(62), 0, QtCore.Qt.AlignHCenter)
+        root.addSpacing(6)
+        title = QtWidgets.QLabel("登录剪蛋")
+        title.setObjectName("loginTitle")
+        title.setAlignment(QtCore.Qt.AlignCenter)
+        root.addWidget(title)
+        detail = QtWidgets.QLabel("输入邮箱，我们会发送一个 6 位验证码")
+        detail.setObjectName("loginDetail")
+        detail.setAlignment(QtCore.Qt.AlignCenter)
+        root.addWidget(detail)
+        root.addSpacing(14)
+
+        self.email_input = QtWidgets.QLineEdit()
+        self.email_input.setPlaceholderText("邮箱地址")
+        self.email_input.setClearButtonEnabled(True)
+        self.email_input.returnPressed.connect(self.request_code)
+        root.addWidget(self.email_input)
+        self.send_button = QtWidgets.QPushButton("发送验证码")
+        self.send_button.clicked.connect(self.request_code)
+        root.addWidget(self.send_button)
+
+        self.code_input = QtWidgets.QLineEdit()
+        self.code_input.setPlaceholderText("6 位验证码")
+        self.code_input.setMaxLength(6)
+        self.code_input.setAlignment(QtCore.Qt.AlignCenter)
+        self.code_input.setValidator(QtGui.QRegularExpressionValidator(QtCore.QRegularExpression(r"\d{0,6}"), self))
+        self.code_input.returnPressed.connect(self.verify_code)
+        root.addWidget(self.code_input)
+        self.verify_button = QtWidgets.QPushButton("登录")
+        self.verify_button.clicked.connect(self.verify_code)
+        root.addWidget(self.verify_button)
+
+        self.status_label = QtWidgets.QLabel("登录后将在这台设备保持登录")
+        self.status_label.setObjectName("loginStatus")
+        self.status_label.setWordWrap(True)
+        self.status_label.setAlignment(QtCore.Qt.AlignCenter)
+        root.addWidget(self.status_label)
+        root.addStretch()
+        privacy = QtWidgets.QLabel("剪蛋只使用账号确认登录状态，图片与剪贴板内容不会上传。")
+        privacy.setObjectName("loginDetail")
+        privacy.setWordWrap(True)
+        privacy.setAlignment(QtCore.Qt.AlignCenter)
+        root.addWidget(privacy)
+
+    def _set_busy(self, busy: bool, text: str | None = None) -> None:
+        self.email_input.setEnabled(not busy)
+        self.code_input.setEnabled(not busy)
+        self.send_button.setEnabled(not busy and self.cooldown_remaining == 0)
+        self.verify_button.setEnabled(not busy)
+        if text:
+            self.status_label.setText(text)
+            self.status_label.setStyleSheet("color: #98989D;")
+
+    def _start_restore(self) -> None:
+        self._set_busy(True, "正在确认登录状态…")
+
+        def worker() -> None:
+            try:
+                self.bridge.restored.emit(self.client.restore())
+            except Exception:
+                self.bridge.restored.emit(None)
+
+        threading.Thread(target=worker, name="auth-restore", daemon=True).start()
+
+    @QtCore.Slot(object)
+    def _finish_restore(self, session) -> None:
+        if isinstance(session, Session):
+            self.authenticated.emit(session)
+            return
+        self._set_busy(False, "登录后将在这台设备保持登录")
+        self.email_input.setFocus()
+
+    def request_code(self) -> None:
+        email = self.email_input.text()
+        if not email.strip() or self.cooldown_remaining:
+            return
+        self._set_busy(True, "正在发送验证码…")
+
+        def worker() -> None:
+            try:
+                retry_after = self.client.request_code(email)
+                self.bridge.code_sent.emit(retry_after)
+            except AuthError as exc:
+                self.bridge.failed.emit(exc.code, str(exc))
+
+        threading.Thread(target=worker, name="auth-request-code", daemon=True).start()
+
+    @QtCore.Slot(int)
+    def _finish_code_request(self, retry_after: int) -> None:
+        self.cooldown_remaining = max(1, retry_after)
+        self._set_busy(False, "验证码已发送，请检查邮箱")
+        self.code_input.setFocus()
+        self.cooldown_timer.start(1000)
+        self._tick_cooldown()
+
+    def _tick_cooldown(self) -> None:
+        if self.cooldown_remaining <= 0:
+            self.cooldown_timer.stop()
+            self.send_button.setText("重新发送验证码")
+            self.send_button.setEnabled(True)
+            return
+        self.send_button.setText(f"{self.cooldown_remaining} 秒后可重发")
+        self.send_button.setEnabled(False)
+        self.cooldown_remaining -= 1
+
+    def verify_code(self) -> None:
+        if not self.code_input.text().strip():
+            return
+        self._set_busy(True, "正在登录…")
+        email = self.email_input.text()
+        code = self.code_input.text()
+
+        def worker() -> None:
+            try:
+                self.bridge.authenticated.emit(self.client.verify_code(email, code))
+            except AuthError as exc:
+                self.bridge.failed.emit(exc.code, str(exc))
+
+        threading.Thread(target=worker, name="auth-verify", daemon=True).start()
+
+    @QtCore.Slot(object)
+    def _finish_verification(self, session) -> None:
+        if isinstance(session, Session):
+            self.authenticated.emit(session)
+
+    @QtCore.Slot(str, str)
+    def _show_error(self, _code: str, message: str) -> None:
+        self._set_busy(False)
+        self.status_label.setText(message)
+        self.status_label.setStyleSheet("color: #FF453A;")
+
+    def reset(self) -> None:
+        self.code_input.clear()
+        self.cooldown_remaining = 0
+        self.cooldown_timer.stop()
+        self.send_button.setText("发送验证码")
+        self._set_busy(False, "已退出登录")
+        self.show()
+        self.raise_()
+        self.activateWindow()
+
+    def closeEvent(self, event) -> None:
+        event.accept()
+        QtWidgets.QApplication.quit()
+
+
+class StatusWindow(QtWidgets.QWidget):
+    def __init__(self, show_event: int, session: Session, on_logout) -> None:
+        super().__init__()
+        self.session = session
+        self.on_logout = on_logout
         self.bridge = Bridge()
         self.bridge.request_import.connect(self.start_hotkey_import)
         self.bridge.state_changed.connect(self.apply_state)
@@ -169,6 +365,16 @@ class StatusWindow(QtWidgets.QWidget):
         brand.addWidget(subtitle)
         header.addLayout(brand)
         header.addStretch()
+        self.account_button = QtWidgets.QPushButton(session.email)
+        self.account_button.setFlat(True)
+        self.account_button.setCursor(QtCore.Qt.PointingHandCursor)
+        self.account_button.setToolTip("账号")
+        self.account_button.setStyleSheet("QPushButton { color: #8E8E93; border: none; padding: 6px; } QPushButton:hover { color: #F5F5F7; }")
+        account_menu = QtWidgets.QMenu(self.account_button)
+        logout_action = account_menu.addAction("退出登录")
+        logout_action.triggered.connect(self.logout)
+        self.account_button.setMenu(account_menu)
+        header.addWidget(self.account_button)
         service = QtWidgets.QVBoxLayout()
         service.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
         service.setSpacing(4)
@@ -258,6 +464,9 @@ class StatusWindow(QtWidgets.QWidget):
         show_action.triggered.connect(self.show_normal)
         quit_action = menu.addAction("退出")
         quit_action.triggered.connect(QtWidgets.QApplication.quit)
+        menu.addSeparator()
+        logout_action = menu.addAction("退出登录")
+        logout_action.triggered.connect(self.logout)
         self.tray.setContextMenu(menu)
         self.tray.activated.connect(lambda reason: self.show_normal() if reason == QtWidgets.QSystemTrayIcon.Trigger else None)
         self.tray.show()
@@ -391,6 +600,14 @@ class StatusWindow(QtWidgets.QWidget):
 
     def shutdown(self) -> None:
         self._remove_hotkey()
+        self.tray.hide()
+
+    def logout(self) -> None:
+        self._remove_hotkey()
+        self.service_enabled = False
+        self.tray.hide()
+        self.hide()
+        self.on_logout(self)
 
 
 def run_gui() -> None:
@@ -428,9 +645,82 @@ def run_gui() -> None:
     app.setApplicationDisplayName("剪蛋")
     app.setWindowIcon(brand_icon())
     app.setQuitOnLastWindowClosed(False)
-    window = StatusWindow(show_event)
-    app.aboutToQuit.connect(window.shutdown)
-    window.show()
+    auth_client = AuthClient()
+    login = LoginWindow(auth_client)
+    active_window: dict[str, StatusWindow | None] = {"window": None}
+    session_check_lock = threading.Lock()
+    session_timer = QtCore.QTimer()
+    session_timer.setInterval(90_000)
+
+    def reject_session(message: str) -> None:
+        window = active_window["window"]
+        if window is None:
+            return
+        window.shutdown()
+        window.hide()
+        window.deleteLater()
+        active_window["window"] = None
+        auth_client.store.clear()
+        login.reset()
+        login.status_label.setText(message)
+        login.status_label.setStyleSheet("color: #FF453A;")
+
+    def apply_checked_session(session) -> None:
+        window = active_window["window"]
+        if window is not None and isinstance(session, Session):
+            window.session = session
+
+    def check_session() -> None:
+        window = active_window["window"]
+        if window is None or not session_check_lock.acquire(blocking=False):
+            return
+        session = window.session
+
+        def worker() -> None:
+            try:
+                login.bridge.session_checked.emit(auth_client.validate(session))
+            except AuthError as exc:
+                if exc.code in {"network_error", "service_unavailable"} and session.access_expires_at > int(time.time()):
+                    return
+                login.bridge.session_rejected.emit(str(exc))
+            finally:
+                session_check_lock.release()
+
+        threading.Thread(target=worker, name="auth-session-check", daemon=True).start()
+
+    def finish_logout(window: StatusWindow) -> None:
+        window.shutdown()
+        active_window["window"] = None
+        session_timer.stop()
+
+        def worker() -> None:
+            try:
+                auth_client.logout()
+            finally:
+                login.bridge.signed_out.emit()
+
+        threading.Thread(target=worker, name="auth-logout", daemon=True).start()
+
+    def show_status(session) -> None:
+        if not isinstance(session, Session):
+            return
+        login.hide()
+        current = active_window["window"]
+        if current is not None:
+            current.shutdown()
+            current.deleteLater()
+        window = StatusWindow(show_event, session, finish_logout)
+        active_window["window"] = window
+        window.show()
+        session_timer.start()
+
+    login.authenticated.connect(show_status)
+    login.bridge.signed_out.connect(login.reset)
+    login.bridge.session_checked.connect(apply_checked_session)
+    login.bridge.session_rejected.connect(reject_session)
+    session_timer.timeout.connect(check_session)
+    app.aboutToQuit.connect(lambda: active_window["window"].shutdown() if active_window["window"] else None)
+    login.show()
     app.exec()
     kernel32.CloseHandle(show_event)
     kernel32.CloseHandle(mutex)
