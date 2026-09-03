@@ -24,8 +24,6 @@ That is why Jiandan exists. Take a screenshot or copy an image, return to Jianyi
 
 Double-click `run.bat`.
 
-First use requires a one-time email verification code. Credentials are encrypted with Windows DPAPI for the current Windows user and can remain signed in for 30 days. Signing in on another device automatically signs out the previous device. Jiandan never uploads images or clipboard contents.
-
 On the first launch, the script creates a local `.venv`, installs the required packages, and opens the status window. Later launches start immediately. If Jiandan is already running, launching it again brings back the existing window instead of starting another service.
 
 ## Usage
