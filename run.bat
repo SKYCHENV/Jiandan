@@ -4,26 +4,22 @@ cd /d "%~dp0"
 
 set "VENV_PYTHON=%CD%\.venv\Scripts\python.exe"
 set "VENV_PYTHONW=%CD%\.venv\Scripts\pythonw.exe"
-set "VENV_READY=%CD%\.venv\.jiandan-ready"
 
-if exist "%VENV_PYTHONW%" if exist "%VENV_READY%" goto launch
+if exist "%VENV_PYTHONW%" goto launch
 
 echo [Jiandan] Preparing the local Python environment...
-if not exist "%VENV_PYTHON%" (
-    where py >nul 2>nul
-    if %errorlevel% equ 0 (
-        py -3 -m venv .venv
-    ) else (
-        python -m venv .venv
-    )
+where py >nul 2>nul
+if %errorlevel% equ 0 (
+    py -3 -m venv .venv
+) else (
+    python -m venv .venv
 )
 
 if not exist "%VENV_PYTHON%" goto setup_failed
-"%VENV_PYTHON%" -m pip install --disable-pip-version-check --upgrade pip
+"%VENV_PYTHON%" -m pip install --upgrade pip
 if errorlevel 1 goto setup_failed
-"%VENV_PYTHON%" -m pip install --disable-pip-version-check -r requirements.txt
+"%VENV_PYTHON%" -m pip install -r requirements.txt
 if errorlevel 1 goto setup_failed
-> "%VENV_READY%" echo ready
 
 :launch
 start "" "%VENV_PYTHONW%" -m jy_live_paste gui
