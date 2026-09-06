@@ -17,14 +17,16 @@
 ## 环境
 
 - Windows 10 或 Windows 11
-- Python 3.10 或更高版本
+- 源码版需要 Python 3.10 或更高版本；EXE 版无需安装 Python
 - 剪映专业版
 
 ## 启动
 
-双击 `run.bat`。
+从 [Releases](https://github.com/SKYCHENV/Jiandan/releases) 下载并双击 `Jiandan.exe`。源码版双击 `run.bat`。
 
 首次启动会在项目目录创建 `.venv` 并安装依赖，完成后自动打开状态窗口。以后再次双击会直接启动；如果剪蛋已经运行，则只显示已有窗口，不会重复启动服务。
+
+首次使用需要输入邮箱验证码。登录凭据使用 Windows DPAPI 加密后仅保存在当前 Windows 用户下，可保持登录 30 天；同一邮箱在新设备登录后，旧设备会自动退出。剪蛋不会上传图片或剪贴板内容。
 
 ## 使用
 
@@ -38,6 +40,8 @@
 
 关闭窗口只会隐藏到系统托盘。需要完全退出时，右键托盘图标并选择“退出”。
 
+关闭或退出程序会保留登录，下次启动会在后台恢复登录后直接显示主窗口。只有主窗口邮箱菜单中的“退出登录”会清除登录状态。
+
 ## 项目结构
 
 ```text
@@ -48,7 +52,7 @@ run.bat             Windows 启动入口
 requirements.txt    运行依赖
 ```
 
-运行过程中，导入的图片会保存在 `a/<随机ID>/i.png`。这些文件可能被剪映草稿引用，请不要在仍需使用对应草稿时删除。运行日志写入 `import-debug.log`。
+通过 EXE 或 `run.bat` 启动时，导入图片保存在 `%LOCALAPPDATA%\Jiandan\captured`，运行日志保存在 `%LOCALAPPDATA%\Jiandan\import-debug.log`。图片可能被剪映草稿引用，请不要在仍需使用对应草稿时删除。
 
 ## 开发与测试
 

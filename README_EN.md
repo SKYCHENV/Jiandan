@@ -17,12 +17,14 @@ That is why Jiandan exists. Take a screenshot or copy an image, return to Jianyi
 ## Requirements
 
 - Windows 10 or Windows 11
-- Python 3.10 or newer
+- Python 3.10 or newer for the source version; the EXE needs no Python installation
 - Jianying Pro
 
 ## Launch
 
-Double-click `run.bat`.
+Download `Jiandan.exe` from [Releases](https://github.com/SKYCHENV/Jiandan/releases) and double-click it. For the source version, double-click `run.bat`.
+
+First use requires a one-time email verification code. Credentials are encrypted with Windows DPAPI for the current Windows user and can remain signed in for 30 days. Signing in on another device automatically signs out the previous device. Jiandan never uploads images or clipboard contents.
 
 On the first launch, the script creates a local `.venv`, installs the required packages, and opens the status window. Later launches start immediately. If Jiandan is already running, launching it again brings back the existing window instead of starting another service.
 
@@ -38,6 +40,8 @@ On the first launch, the script creates a local `.venv`, installs the required p
 
 Closing the status window sends Jiandan to the system tray. To stop it completely, right-click the tray icon and choose Exit.
 
+Closing or exiting preserves your login. On the next launch, Jiandan restores your session in the background and opens the main window directly. Use Sign out in the main window's email menu to clear your login.
+
 ## Project Layout
 
 ```text
@@ -48,7 +52,7 @@ run.bat             Windows launcher
 requirements.txt    Runtime dependencies
 ```
 
-Imported images are stored under `a/<random-id>/i.png`. Jianying projects may reference these files, so do not delete them while you still need the related projects. Runtime diagnostics are written to `import-debug.log`.
+When launched with the EXE or `run.bat`, imported images are stored under `%LOCALAPPDATA%\Jiandan\captured` and diagnostics under `%LOCALAPPDATA%\Jiandan\import-debug.log`. Jianying projects may reference these images; retain them while those projects are in use.
 
 ## Development and Tests
 
