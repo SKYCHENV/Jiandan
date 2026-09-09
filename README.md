@@ -6,6 +6,10 @@
 
 **简单复制到剪映。** 复制或截图一张图片，在剪映素材页按 `Ctrl+V`，剪蛋会把图片直接加入播放头所在位置，并放在现有画面轨道上方。
 
+[官网](https://www.jiandan.qd.je/) · [下载 Windows 正式版](https://www.jiandan.qd.je/download/) · [快速开始](https://www.jiandan.qd.je/docs/quick-start/) · [v1.1.0 发布页](https://github.com/SKYCHENV/Jiandan/releases/tag/v1.1.0)
+
+当前正式版为 **v1.1.0**，提供免安装的 `Jiandan.exe`；源码运行方式继续保留。
+
 ## 为什么有剪蛋
 
 剪映不支持把刚刚截好的图片直接粘贴进素材区。
@@ -22,7 +26,7 @@
 
 ## 启动
 
-从 [Releases](https://github.com/SKYCHENV/Jiandan/releases) 下载并双击 `Jiandan.exe`。源码版双击 `run.bat`。
+普通用户可从[官方下载页](https://www.jiandan.qd.je/download/)获取 `Jiandan.exe` 并直接运行。源码版双击 `run.bat`。
 
 首次启动会在项目目录创建 `.venv` 并安装依赖，完成后自动打开状态窗口。以后再次双击会直接启动；如果剪蛋已经运行，则只显示已有窗口，不会重复启动服务。
 

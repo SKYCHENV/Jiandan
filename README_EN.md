@@ -6,6 +6,10 @@
 
 **Copy images straight into Jianying.** Copy or capture an image, press `Ctrl+V` on Jianying's Media page, and Jiandan places it at the playhead on a track above the existing visual tracks.
 
+[Website](https://www.jiandan.qd.je/en/) · [Download for Windows](https://www.jiandan.qd.je/en/download/) · [Quick start](https://www.jiandan.qd.je/en/docs/quick-start/) · [v1.1.0 release](https://github.com/SKYCHENV/Jiandan/releases/tag/v1.1.0)
+
+The current stable release is **v1.1.0** and includes a standalone `Jiandan.exe`. Running from source remains supported.
+
 ## Why Jiandan Exists
 
 Jianying does not let you paste a screenshot directly into its media library.
@@ -22,7 +26,7 @@ That is why Jiandan exists. Take a screenshot or copy an image, return to Jianyi
 
 ## Launch
 
-Download `Jiandan.exe` from [Releases](https://github.com/SKYCHENV/Jiandan/releases) and double-click it. For the source version, double-click `run.bat`.
+Most users can download `Jiandan.exe` from the [official download page](https://www.jiandan.qd.je/en/download/) and run it directly. For the source version, double-click `run.bat`.
 
 First use requires a one-time email verification code. Credentials are encrypted with Windows DPAPI for the current Windows user and can remain signed in for 30 days. Signing in on another device automatically signs out the previous device. Jiandan never uploads images or clipboard contents.
 
